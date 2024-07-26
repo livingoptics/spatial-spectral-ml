@@ -1,0 +1,8 @@
+huggingface_hub
+ultralytics 
+torch 
+opencv-python
+lo-sdk
+lo-data
+jupyter
+scikit-learn
