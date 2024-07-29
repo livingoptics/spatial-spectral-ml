@@ -254,7 +254,7 @@ class Classifier(BaseSpectralClassifier):
 ```
 
 ### Use Your Own Data
-See the [use your own data readme](use_your_own_data.md)
+See the [use your own data readme](./docs/use_your_own_data.md)
 
 ## Resources
 
