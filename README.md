@@ -27,7 +27,7 @@ standard RGB data alone.
 - Please read the [Getting started guide](https://developer.livingoptics.com/getting-started/)
 - Register to download the SDK and sample data [here](https://www.livingoptics.com/register-for-download-sdk/)
 - Registered as a user? Read the [documentation](https://docs.livingoptics.com/)
-- Have a look at our other application examples [here](github)
+- Have a look at our other application examples [here](https://github.com/livingoptics/python-examples)
 
 
 

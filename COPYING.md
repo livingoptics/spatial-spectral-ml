@@ -1,4 +1,4 @@
-# Python SDK examples
+# Spatial Spectral ML
 
 ### (C) Living Optics Limited 2023-2024
 
