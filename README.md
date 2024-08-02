@@ -3,7 +3,7 @@
 
 Showcases how machine and deep learning application can be built on top of the Living Optics Camera.
 
-### All examples are built on top of our huggingface dataset and model repository [🤗 Living Optics](https://huggingface.co/LivingOptics)
+### All examples are built on top of our huggingface dataset and model repository [🤗 Living Optics](https://livingoptics.com/huggingface)
 
 
 <center>
@@ -65,8 +65,8 @@ Add the segmentation-and-spectral-detection package to your python path
 To download the training dataset, use the following code:
 
 ```python
-from huggingface_hub import hf_hub_download
-dataset_path = hf_hub_download(repo_id="LivingOptics/hyperspectral-fruit", filename="train", repo_type="dataset")
+from huggingface_hub import snapshot_download
+dataset_path = snapshot_download(repo_id="LivingOptics/hyperspectral-fruit", repo_type="dataset")
 print(dataset_path)
 ```
 
@@ -90,20 +90,12 @@ huggingface-cli download LivingOptics/hyperspectral-fruit --repo-type dataset --
 
 To download all demo videos for fruit detection run the following.
 
-```python
-from huggingface_hub import hf_hub_download
-demo_data_path = hf_hub_download(repo_id="LivingOptics/hyperspectral-fruit", filename='demo-videos', repo_type="dataset")
-print(demo_data_path)
-```
-
-OR 
-
 ```bash
 mkdir -p hyperspectral-fruit
 huggingface-cli download LivingOptics/hyperspectral-fruit include 'demo-videos/*' --repo-type dataset --local-dir hyperspectral-fruit
 ```
 
-To download a specfic demo video files navigate to [🤗 Living Opitcs demo dataset](https://huggingface.co/LivingOptics/hyperspectral-fruit/demo-videos)
+To download a specific demo video files navigate to [🤗 Living Optics demo dataset](https://huggingface.co/datasets/LivingOptics/hyperspectral-fruit/tree/main/demo-videos)
 
 ### Fit a Classifier
 
