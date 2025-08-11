@@ -1,26 +1,27 @@
 # This file is subject to the terms and conditions defined in file
 # `COPYING.md`, which is part of this source code package.
 
+import os
 import cv2
+import subprocess
 import numpy as np
+
 from classifiers.fastsam.model import FastSAM
 from classifiers.helpers import draw_detections, get_spectra_from_mask
-from classifiers.spectral_classifier import CPURFClassifier as classifier
+
+from lo.sdk.analysis.ml.models.spectral_classifier import CPURFClassifier as classifier
+from lo_dataset_reader import DatasetReader
+from lo.sdk.api.acquisition.data.formats import LORAWtoLOGRAY12, _debayer
+
+
 
 if __name__ == "__main__":
     import argparse
 
-    from reader import LOReader
 
     parser = argparse.ArgumentParser(
         prog="LO spectral classifier",
         epilog="Living Optics 2024",
-    )
-    parser.add_argument(
-        "--source",
-        default=None,
-        type=str,
-        help="Path to an .lo or .loraw file to test the trained classifier with, default is from streaming camera",
     )
     parser.add_argument(
         "--model_path",
@@ -33,62 +34,70 @@ if __name__ == "__main__":
         help="plot raw specta outputs",
     )
     parser.add_argument(
-        "--calibration",
-        type=str,
-        default=None,
-        help="Path to calibration folder. Only used if a test source is provided.",
-    )
-
-    parser.add_argument(
-        "--calibration_file_path",
-        default=None,
-        type=str,
-        help="Path to field calibration frame Only used if a test source is provided.",
-    )
-    parser.add_argument(
         "--threshold",
         default=0.4,
         type=float,
         help="Confidence threshold for the spectral classifier.",
     )
-
     parser.add_argument(
         "--sa_factor",
         default=4,
         type=float,
         help="Spectral angle multiplier below which to consider a spectrum as a true classification for a particular class",
     )
+    parser.add_argument(
+        "--dataset_path",
+        type=str,
+        help="Path to the root directory of the JSON format dataset.",
+    )
 
     args = parser.parse_args()
 
     # Initialise LO reader
-    reader = LOReader(
-        args.calibration, args.source, calibration_frame=args.calibration_file_path
-    )
+    reader = DatasetReader(dataset_path=args.dataset_path)
 
-    # Set camera parameters - only relevant when streaming.
-    reader.source.frame_rate = int(10000e3)  # μhz
-    reader.source.exposure = int(100000e3)  # μs
-    reader.source.gain = 100
+    class_label_to_number = {
+        0: "background_class",
+    }
 
     # Load trained spectral classifier
     classifier = classifier(
         classifier_path=args.model_path,
         plot_spectra=False,
         do_reflectance=True,
+        class_number_to_label=class_label_to_number,
     )
 
     # load segment anything model developed by ultralytics.
+    fastsam_url = "https://github.com/ultralytics/assets/releases/download/v8.3.0/FastSAM-x.pt"
+    filename = "FastSAM-x.pt"
+
+    if not os.path.exists(filename):
+        print(f"Downloading {filename}...")
+        subprocess.run(["wget", fastsam_url, "-O", filename])
+    else:
+        print(f"{filename} already exists. Skipping download.")
     model = FastSAM("FastSAM-x.pt")
-
-    while True:
-
-        info, scene_frame, spectra = reader.get_next_frame()
+    
+    for (info, scene_frame, spectra, *_), *_ in reader:
 
         if scene_frame is None:
             break
 
         scene_frame = np.ascontiguousarray(scene_frame)
+
+        if len(scene_frame.shape) == 3:
+            scene_frame = scene_frame.squeeze()
+        if np.amax(scene_frame) > 1000:
+            scene_frame = LORAWtoLOGRAY12(scene_frame)
+
+        if scene_frame.shape[0] % 2 == 1 or scene_frame.shape[1] % 2 == 1:
+            scene_frame = np.dstack([scene_frame, scene_frame, scene_frame])
+        else:
+            scene_frame = _debayer(scene_frame)
+
+        scene_frame = np.ascontiguousarray(scene_frame).astype(np.uint8)
+        scene_frame = cv2.cvtColor(scene_frame, cv2.COLOR_RGB2BGR)
 
         results = model(
             scene_frame, device="cpu", retina_masks=True, imgsz=480, conf=0.6, iou=0.9
@@ -124,5 +133,5 @@ if __name__ == "__main__":
                 classifier.classes, scene_frame, bbox, bb_prob, bb_class, seg
             )
 
-        cv2.imshow("segmentation result", scene_frame)
+        cv2.imshow("segmentation result", cv2.resize(scene_frame, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(1)

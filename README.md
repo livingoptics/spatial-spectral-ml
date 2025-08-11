@@ -60,42 +60,11 @@ Add the segmentation-and-spectral-detection package to your python path
  export PYTHONPATH="${PYTHONPATH}:segmentation-and-spectral-detection"
 ```
 
-### Download Training Dataset from Hugging Face
+### Download Training Dataset from Living Optics Cloud Portal
 
-To download the training dataset, use the following code:
-
-```python
-from huggingface_hub import snapshot_download
-dataset_path = snapshot_download(repo_id="LivingOptics/hyperspectral-fruit", repo_type="dataset")
-print(dataset_path)
-```
-
-OR 
-
-```bash
-mkdir -p hyperspectral-fruit
-huggingface-cli download LivingOptics/hyperspectral-fruit include 'train/*' --repo-type dataset --local-dir hyperspectral-fruit
-```
-
-Run the following command if on orin:
-
-```bash
-mkdir -p /datastore/lo/share/samples/hyperspectral-fruit
-huggingface-cli download LivingOptics/hyperspectral-fruit --repo-type dataset --local-dir /datastore/lo/share/samples/hyperspectral-fruit
-```
+You can access this dataset via the [Living Optics Cloud Portal](https://cloud.livingoptics.com/shared-resources).
 
 #### For details on the dataset navigate to  [🤗 Living Optics hyperspectral fruit](https://huggingface.co/datasets/LivingOptics/hyperspectral-fruit)
-
-### Download demo data:
-
-To download all demo videos for fruit detection run the following.
-
-```bash
-mkdir -p hyperspectral-fruit
-huggingface-cli download LivingOptics/hyperspectral-fruit include 'demo-videos/*' --repo-type dataset --local-dir hyperspectral-fruit
-```
-
-To download a specific demo video files navigate to [🤗 Living Optics demo dataset](https://huggingface.co/datasets/LivingOptics/hyperspectral-fruit/tree/main/demo-videos)
 
 ### Fit a Classifier
 

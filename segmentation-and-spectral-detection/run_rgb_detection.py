@@ -1,32 +1,27 @@
 # This file is subject to the terms and conditions defined in file
 # `COPYING.md`, which is part of this source code package.
 
-import pickle
-import time
-
+import os
 import cv2
 import numpy as np
-from classifiers.helpers import draw_detections, get_spectra_from_mask
-from classifiers.spectral_classifier import CPURFClassifier as classifier
-from lo.sdk.helpers._import import import_extra
-from reader import LOReader
+import subprocess
+from typing import List, Tuple
+import numpy.typing as npt
+
 from ultralytics.models.yolo.model import YOLO
 from ultralytics.utils.plotting import Colors
 
-color_palette = Colors()
+from lo.sdk.helpers._import import import_extra
+from lo_dataset_reader import DatasetReader
+from lo.sdk.api.acquisition.data.formats import LORAWtoLOGRAY12, _debayer
+from classifiers.helpers import draw_detections, get_spectra_from_mask
 
-huggingface_hub = import_extra("huggingface_hub", extra="yolo")
-hf_hub_download = huggingface_hub.hf_hub_download
-ultralytics = import_extra("ultralytics", extra="yolo")
-YOLO = ultralytics.YOLO
+
+color_palette = Colors()
 cuda = import_extra("torch.cuda", extra="yolo")
 
 
-def get_from_huggingface_model(
-    repo_id: str = "jaredthejelly/yolov8s-face-detection",
-    filename: str = "YOLOv8-face-detection.pt",
-    model_path=None,
-) -> YOLO:
+def get_from_huggingface_model(model_path=None) -> YOLO:
     """
     Get a hugging face model
 
@@ -38,11 +33,15 @@ def get_from_huggingface_model(
         model: (ultralytics.YOLO) - The loaded model object
     """
     # Initialise face detector through hugging face
-    if model_path is None:
-        model_path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-        )
+    yolo_url = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8l-seg.pt"
+    model_path = "yolov8l-seg.pt"
+
+    if not os.path.exists(model_path) or os.path.getsize(model_path) < 85 * 1024 * 1024:
+        print(f"Downloading {model_path}...")
+        subprocess.run(["wget", yolo_url, "-O", model_path])
+    else:
+        print(f"{model_path} already exists. Skipping download.")
+
     device = "cpu"
     if cuda.is_available():
         device = "gpu"
@@ -54,54 +53,42 @@ def get_from_huggingface_model(
 if __name__ == "__main__":
     import argparse
 
-    from reader import LOReader
-
     parser = argparse.ArgumentParser(
         prog="LO segmentation example",
         epilog="Living Optics 2024",
     )
     parser.add_argument(
-        "--source",
-        default=None,
+        "--dataset_path",
         type=str,
-        help="Path to an .lo or .loraw file to test the trained classifier with",
-    )
-    parser.add_argument(
-        "--calibration",
-        type=str,
-        default=None,
-        help="Path to calibration folder. Only used if a test source is provided.",
-    )
-
-    parser.add_argument(
-        "--calibration_file_path",
-        default="",
-        type=str,
-        help="Path to field calibration frame Only used if a test source is provided.",
+        help="Path to the root directory of the JSON format dataset.",
     )
 
     args = parser.parse_args()
 
     # Initialise LO reader
-    reader = LOReader(
-        args.calibration, args.source, calibration_frame=args.calibration_file_path
-    )
-
-    # Set camera parameters - only relevant when streaming.
-    reader.source.frame_rate = int(10000e3)  # μhz
-    reader.source.exposure = int(100000e3)  # μs
-    reader.source.gain = 100
+    reader = DatasetReader(dataset_path=args.dataset_path)
 
     model = get_from_huggingface_model(model_path="yolov8l-seg.pt")
 
-    while True:
-
-        info, scene_frame, spectra = reader.get_next_frame()
+    for (_, scene_frame, *_), *_ in reader:
 
         if scene_frame is None:
             break
 
         scene_frame = np.ascontiguousarray(scene_frame)
+
+        if len(scene_frame.shape) == 3:
+            scene_frame = scene_frame.squeeze()
+        if np.amax(scene_frame) > 1000:
+            scene_frame = LORAWtoLOGRAY12(scene_frame)
+
+        if scene_frame.shape[0] % 2 == 1 or scene_frame.shape[1] % 2 == 1:
+            scene_frame = np.dstack([scene_frame, scene_frame, scene_frame])
+        else:
+            scene_frame = _debayer(scene_frame)
+
+        scene_frame = np.ascontiguousarray(scene_frame).astype(np.uint8)
+        scene_frame = cv2.cvtColor(scene_frame, cv2.COLOR_RGB2BGR)
 
         results = model(scene_frame, imgsz=640, conf=0.4, iou=0.3)
         if results[0].masks is None:
@@ -113,6 +100,5 @@ if __name__ == "__main__":
                 results[0].names, scene_frame, box, conf, cls_, segment
             )
 
-        cv2.imshow("detections", scene_frame)
-
+        cv2.imshow("detections", cv2.resize(scene_frame, (0, 0), fx=0.5, fy=0.5))
         cv2.waitKey(1)
